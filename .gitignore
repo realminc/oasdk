@@ -1,0 +1,7 @@
+/target
+/build
+/bin
+/var
+__pycache__/
+*.py[cod]
+.venv/
