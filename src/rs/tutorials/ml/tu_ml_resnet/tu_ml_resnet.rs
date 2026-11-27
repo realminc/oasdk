@@ -1,21 +1,18 @@
 use oa::ml::{ItTraining, ItTrainingConfig, LossMetric, Module, ProgressBar, TrainingSummary};
 use oa::{Cli, LogMetrics};
 
-// Synthetic 3-class image task: horizontal bar, vertical bar, or diagonal
-// stripe on a 16x16 grayscale grid with light noise. Fixed geometry keeps
-// the contract free of padding; patches embed through a shared Linear.
+// Synthetic 3-class image task shared with tu_ml_vit: horizontal bar,
+// vertical bar, or diagonal stripe on a 16x16 grayscale grid with light
+// noise. The residual network keeps the full [B, C, H, W] contract.
 const IMAGE_SIDE: usize = 16;
-const PATCH_SIDE: usize = 4;
-const NUM_PATCHES: usize = (IMAGE_SIDE / PATCH_SIDE) * (IMAGE_SIDE / PATCH_SIDE); // 16
-const TOKENS: usize = NUM_PATCHES + 1; // 16 patches + 1 class token
+const CHANNELS: usize = 8;
 const NUM_CLASSES: usize = 3;
-const MODEL_WIDTH: usize = 32;
 const TRAINING_STEPS: usize = 200;
 const BATCH_SIZE: usize = 32;
 const EVAL_IMAGES: usize = 64;
 
 #[derive(Default)]
-struct VitConfig {
+struct ResNetConfig {
 	steps: u64,
 	batch: u64,
 	lr: f32,
@@ -45,29 +42,27 @@ impl ShapeRng {
 	}
 }
 
-// Emit `batch` images flattened as patch-major rows: batch * NUM_PATCHES
-// rows of PATCH_SIDE*PATCH_SIDE pixels, plus one class label each.
 fn next_batch(rng: &mut ShapeRng, batch: usize) -> (Vec<f32>, Vec<u32>) {
-	let mut patches = vec![0.0_f32; batch * NUM_PATCHES * PATCH_SIDE * PATCH_SIDE];
+	let mut images = vec![0.0_f32; batch * IMAGE_SIDE * IMAGE_SIDE];
 	let mut labels = Vec::with_capacity(batch);
 	for image in 0..batch {
 		let class = rng.below(NUM_CLASSES) as u32;
 		labels.push(class);
-		let mut pixels = vec![0.0_f32; IMAGE_SIDE * IMAGE_SIDE];
-		for pixel in pixels.iter_mut() {
-			*pixel = 0.05 * rng.unit();
+		let base = image * IMAGE_SIDE * IMAGE_SIDE;
+		for pixel in 0..IMAGE_SIDE * IMAGE_SIDE {
+			images[base + pixel] = 0.05 * rng.unit();
 		}
 		match class {
 			0 => {
 				let row = 2 + rng.below(IMAGE_SIDE - 4);
 				for column in 0..IMAGE_SIDE {
-					pixels[row * IMAGE_SIDE + column] = 0.85 + 0.1 * rng.unit();
+					images[base + row * IMAGE_SIDE + column] = 0.85 + 0.1 * rng.unit();
 				}
 			}
 			1 => {
 				let column = 2 + rng.below(IMAGE_SIDE - 4);
 				for row in 0..IMAGE_SIDE {
-					pixels[row * IMAGE_SIDE + column] = 0.85 + 0.1 * rng.unit();
+					images[base + row * IMAGE_SIDE + column] = 0.85 + 0.1 * rng.unit();
 				}
 			}
 			_ => {
@@ -75,82 +70,108 @@ fn next_batch(rng: &mut ShapeRng, batch: usize) -> (Vec<f32>, Vec<u32>) {
 				for diagonal in 0..IMAGE_SIDE {
 					let column = diagonal + offset;
 					if column < IMAGE_SIDE {
-						pixels[diagonal * IMAGE_SIDE + column] = 0.85 + 0.1 * rng.unit();
+						images[base + diagonal * IMAGE_SIDE + column] = 0.85 + 0.1 * rng.unit();
 					}
 				}
 			}
 		}
-		let base = image * NUM_PATCHES * PATCH_SIDE * PATCH_SIDE;
-		for patch in 0..NUM_PATCHES {
-			let patch_row = (patch / (IMAGE_SIDE / PATCH_SIDE)) * PATCH_SIDE;
-			let patch_col = (patch % (IMAGE_SIDE / PATCH_SIDE)) * PATCH_SIDE;
-			for y in 0..PATCH_SIDE {
-				for x in 0..PATCH_SIDE {
-					patches[base + patch * PATCH_SIDE * PATCH_SIDE + y * PATCH_SIDE + x] =
-						pixels[(patch_row + y) * IMAGE_SIDE + patch_col + x];
-				}
-			}
-		}
 	}
-	(patches, labels)
+	(images, labels)
 }
 
-struct Vit {
-	patch_projection: oa::ml::nn::Linear,
-	class_embedding: oa::ml::nn::Embedding,
-	position_embedding: oa::ml::nn::Embedding,
-	blocks: Vec<oa::ml::nn::TransformerBlock>,
-	final_norm: oa::ml::nn::LayerNorm,
+// Standard residual stage: conv-bn-relu-conv-bn plus an identity skip,
+// then a final relu. Channel counts stay constant so no projection skip
+// is required.
+struct ResidualBlock {
+	conv_a: oa::ml::nn::Conv2d,
+	norm_a: oa::ml::nn::BatchNorm2d,
+	relu_a: oa::ml::nn::Relu,
+	conv_b: oa::ml::nn::Conv2d,
+	norm_b: oa::ml::nn::BatchNorm2d,
+	relu_out: oa::ml::nn::Relu,
+}
+
+impl ResidualBlock {
+	fn new(runtime: &oa::Runtime, seed: u64) -> oa::Result<Self> {
+		Ok(Self {
+			conv_a: oa::ml::nn::Conv2d::new_with_seed_on(runtime, CHANNELS, CHANNELS, 3, 1, 1, 1, seed)?,
+			norm_a: oa::ml::nn::BatchNorm2d::new_on(runtime, CHANNELS)?,
+			relu_a: oa::ml::nn::Relu::new(),
+			conv_b: oa::ml::nn::Conv2d::new_with_seed_on(
+				runtime,
+				CHANNELS,
+				CHANNELS,
+				3,
+				1,
+				1,
+				1,
+				seed.wrapping_add(1),
+			)?,
+			norm_b: oa::ml::nn::BatchNorm2d::new_on(runtime, CHANNELS)?,
+			relu_out: oa::ml::nn::Relu::new(),
+		})
+	}
+
+	fn forward(&self, input: &oa::Matrix) -> oa::Result<oa::Matrix> {
+		let hidden = self
+			.relu_a
+			.forward(&self.norm_a.forward(&self.conv_a.forward(input)?)?)?;
+		let hidden = self.norm_b.forward(&self.conv_b.forward(&hidden)?)?;
+		self.relu_out.forward(&oa::matrix::add(&hidden, input)?)
+	}
+
+	fn all_parameters(&self) -> oa::Result<Vec<oa::ml::Parameter>> {
+		let mut parameters = self.conv_a.all_parameters()?;
+		parameters.extend(self.norm_a.all_parameters()?);
+		parameters.extend(self.conv_b.all_parameters()?);
+		parameters.extend(self.norm_b.all_parameters()?);
+		Ok(parameters)
+	}
+}
+
+struct ResNet {
+	stem_conv: oa::ml::nn::Conv2d,
+	stem_norm: oa::ml::nn::BatchNorm2d,
+	stem_relu: oa::ml::nn::Relu,
+	blocks: Vec<ResidualBlock>,
+	pool: oa::ml::nn::AdaptiveAvgPool2d,
+	flatten: oa::ml::nn::Flatten,
 	head: oa::ml::nn::Linear,
 }
 
-impl Vit {
+impl ResNet {
 	fn new(runtime: &oa::Runtime, seed: u64) -> oa::Result<Self> {
-		let patch_projection =
-			oa::ml::nn::Linear::new_with_seed_on(runtime, PATCH_SIDE * PATCH_SIDE, MODEL_WIDTH, seed)?;
-		let class_embedding =
-			oa::ml::nn::Embedding::new_with_seed_on(runtime, 1, MODEL_WIDTH, seed.wrapping_add(1))?;
-		let position_embedding =
-			oa::ml::nn::Embedding::new_with_seed_on(runtime, TOKENS, MODEL_WIDTH, seed.wrapping_add(2))?;
+		let stem_conv = oa::ml::nn::Conv2d::new_with_seed_on(runtime, 1, CHANNELS, 3, 1, 1, 1, seed)?;
+		let stem_norm = oa::ml::nn::BatchNorm2d::new_on(runtime, CHANNELS)?;
+		let stem_relu = oa::ml::nn::Relu::new();
 		let mut blocks = Vec::new();
 		for layer in 0..2_usize {
-			let block = oa::ml::nn::TransformerBlock::new_with_seed_on(
+			blocks.push(ResidualBlock::new(
 				runtime,
-				MODEL_WIDTH,
-				64,
-				TOKENS,
-				4,
-				1.0e-5,
-				seed.wrapping_add(3 + layer as u64),
-			)?;
-			block.set_attention_mode(oa::ml::nn::AttentionMode::Bidirectional);
-			blocks.push(block);
+				seed.wrapping_add(3 + layer as u64 * 2),
+			)?);
 		}
-		let final_norm = oa::ml::nn::LayerNorm::new_on(runtime, MODEL_WIDTH, 1.0e-5)?;
-		let head = oa::ml::nn::Linear::new_with_seed_on(
-			runtime,
-			MODEL_WIDTH,
-			NUM_CLASSES,
-			seed.wrapping_add(7),
-		)?;
+		let pool = oa::ml::nn::AdaptiveAvgPool2d::new(1)?;
+		let flatten = oa::ml::nn::Flatten::new(1, -1);
+		let head =
+			oa::ml::nn::Linear::new_with_seed_on(runtime, CHANNELS, NUM_CLASSES, seed.wrapping_add(9))?;
 		Ok(Self {
-			patch_projection,
-			class_embedding,
-			position_embedding,
+			stem_conv,
+			stem_norm,
+			stem_relu,
 			blocks,
-			final_norm,
+			pool,
+			flatten,
 			head,
 		})
 	}
 
 	fn all_parameters(&self) -> oa::Result<Vec<oa::ml::Parameter>> {
-		let mut parameters = self.patch_projection.all_parameters()?;
-		parameters.extend(self.class_embedding.all_parameters()?);
-		parameters.extend(self.position_embedding.all_parameters()?);
+		let mut parameters = self.stem_conv.all_parameters()?;
+		parameters.extend(self.stem_norm.all_parameters()?);
 		for block in &self.blocks {
 			parameters.extend(block.all_parameters()?);
 		}
-		parameters.extend(self.final_norm.all_parameters()?);
 		parameters.extend(self.head.all_parameters()?);
 		Ok(parameters)
 	}
@@ -165,42 +186,17 @@ impl Vit {
 		)
 	}
 
-	// `patches` is [B*NUM_PATCHES, PATCH_SIDE*PATCH_SIDE]; logits are [B, C].
-	fn forward(&self, patches: &oa::Matrix, batch: usize) -> oa::Result<oa::Matrix> {
-		let cls_index = oa::Matrix::new_from_slice([1], &[0_u32])?;
-		let position_pattern = (0..batch)
-			.flat_map(|_| 0..TOKENS as u32)
-			.collect::<Vec<u32>>();
-		let position_indices = oa::Matrix::new_from_slice([batch * TOKENS], &position_pattern)?;
-		let patch_tokens = self.patch_projection.forward(patches)?;
-		let mut sequence_parts = Vec::with_capacity(batch * 2);
-		for item in 0..batch {
-			sequence_parts.push(self.class_embedding.forward(&cls_index)?);
-			sequence_parts.push(oa::matrix::slice(
-				&patch_tokens,
-				0,
-				(item * NUM_PATCHES) as i64,
-				((item + 1) * NUM_PATCHES) as i64,
-			)?);
-		}
-		let sequence = oa::matrix::concat(&sequence_parts, 0)?;
-		let positions = self.position_embedding.forward(&position_indices)?;
-		let mut hidden = oa::matrix::add(&sequence, &positions)?;
+	// `input` is NCHW [B, 1, IMAGE_SIDE, IMAGE_SIDE]; logits are [B, C].
+	fn forward(&self, input: &oa::Matrix) -> oa::Result<oa::Matrix> {
+		let mut hidden = self
+			.stem_relu
+			.forward(&self.stem_norm.forward(&self.stem_conv.forward(input)?)?)?;
 		for block in &self.blocks {
 			hidden = block.forward(&hidden)?;
 		}
-		let hidden = self.final_norm.forward(&hidden)?;
-		let mut class_rows = Vec::with_capacity(batch);
-		for item in 0..batch {
-			class_rows.push(oa::matrix::slice(
-				&hidden,
-				0,
-				(item * TOKENS) as i64,
-				(item * TOKENS + 1) as i64,
-			)?);
-		}
-		let class_tokens = oa::matrix::concat(&class_rows, 0)?;
-		self.head.forward(&class_tokens)
+		let pooled = self.pool.forward(&hidden)?;
+		let features = self.flatten.forward(&pooled)?;
+		self.head.forward(&features)
 	}
 }
 
@@ -222,14 +218,14 @@ fn accuracy(logits: &oa::Matrix, labels: &[u32], batch: usize) -> oa::Result<f32
 }
 
 fn main() -> oa::Result<()> {
-	let mut cli = Cli::new("tu_vision_vit", "OA Tutorial — Vision Transformer");
+	let mut cli = Cli::new("tu_ml_resnet", "OA Tutorial — Residual ConvNet");
 	cli.add_option(
 		"--steps",
-		|c: &mut VitConfig| &mut c.steps,
+		|c: &mut ResNetConfig| &mut c.steps,
 		"training steps",
 	);
-	cli.add_option("--batch", |c: &mut VitConfig| &mut c.batch, "batch size");
-	cli.add_option("--lr", |c: &mut VitConfig| &mut c.lr, "learning rate");
+	cli.add_option("--batch", |c: &mut ResNetConfig| &mut c.batch, "batch size");
+	cli.add_option("--lr", |c: &mut ResNetConfig| &mut c.lr, "learning rate");
 	if !cli.parse() {
 		return Ok(());
 	}
@@ -251,20 +247,20 @@ fn main() -> oa::Result<()> {
 
 	let runtime = oa::Runtime::new()?;
 	oa::Runtime::set_default(runtime.clone());
-	let model = Vit::new(&runtime, 0x7B17)?;
+	let model = ResNet::new(&runtime, 0x7E57)?;
 	let mut optimizer = oa::ml::AdamW::new(model.all_parameters()?, lr)?;
-	let mut rng = ShapeRng::new(0x5EED_7B17);
+	let mut rng = ShapeRng::new(0x5EED_7E57);
 
 	println!("\n╔══════════════════════════════════════════════════════════════════╗");
-	println!("║  OA Tutorial — Vision Transformer · patch + bidirectional (autograd)║");
+	println!("║  OA Tutorial — Residual ConvNet · conv + BN + skip (autograd)    ║");
 	println!("╚══════════════════════════════════════════════════════════════════╝\n");
 	println!("task: classify a 16x16 image as horizontal bar, vertical bar, or diagonal");
-	println!("model: patch Linear + class token + learned positions + 2 bidirectional blocks");
+	println!("model: conv stem + 2 residual blocks + global pool + linear head");
 	println!(
 		"params: {}    Optimizer: AdamW(lr={lr})\n",
 		model.num_parameters()?
 	);
-	println!("training: {steps} steps · batch={batch} · tokens={TOKENS} · D={MODEL_WIDTH}");
+	println!("training: {steps} steps · batch={batch} · input=[B,1,{IMAGE_SIDE},{IMAGE_SIDE}]");
 
 	let mut loss_metric = LossMetric::default();
 	let mut progress = ProgressBar::default();
@@ -275,9 +271,9 @@ fn main() -> oa::Result<()> {
 		ItTrainingConfig {
 			total_steps: steps as u64,
 			batch_size: batch as u64,
-			sequence_length: (NUM_PATCHES * PATCH_SIDE * PATCH_SIDE) as u64,
+			sequence_length: (IMAGE_SIDE * IMAGE_SIDE) as u64,
 			sequence_unit: "pixel".into(),
-			timer_name: "vit_training_step".into(),
+			timer_name: "resnet_training_step".into(),
 			enable_gpu_timing: true,
 			..ItTrainingConfig::default()
 		},
@@ -287,7 +283,7 @@ fn main() -> oa::Result<()> {
 	training.add_callback(&mut summary_callback);
 
 	let mut metrics = LogMetrics::new();
-	let log_dir = oa::Path::var_rel("log/vision/vit");
+	let log_dir = oa::Path::var_rel("log/vision/resnet");
 	if let Err(e) = metrics.open(&log_dir) {
 		eprintln!("[OA] metrics unavailable: {e}");
 	}
@@ -296,15 +292,15 @@ fn main() -> oa::Result<()> {
 	for _ in 0..steps {
 		assert!(training.step(
 			|| {
-				let (patches, labels) = next_batch(&mut rng, batch);
+				let (images, labels) = next_batch(&mut rng, batch);
 				Ok((
-					oa::Matrix::new_from_f32([batch * NUM_PATCHES, PATCH_SIDE * PATCH_SIDE], &patches)?,
+					oa::Matrix::new_from_f32([batch, 1, IMAGE_SIDE, IMAGE_SIDE], &images)?,
 					oa::Matrix::new_from_slice([batch], &labels)?,
 				))
 			},
-			|(patches, labels)| {
+			|(images, labels)| {
 				let tape = oa::ml::GradientTape::new();
-				let logits = model.forward(&patches, batch)?;
+				let logits = model.forward(&images)?;
 				let loss = oa::ml::loss::cross_entropy(&logits, &labels)?;
 				tape.backward(&loss)?;
 				Ok(loss)
@@ -324,17 +320,17 @@ fn main() -> oa::Result<()> {
 	let training_result = training.finish()?;
 	let final_training_loss = training_result.last_loss().unwrap_or_default();
 
-	let (eval_patches, eval_labels) = next_batch(&mut rng, EVAL_IMAGES);
-	let patches = oa::Matrix::new_from_f32(
-		[EVAL_IMAGES * NUM_PATCHES, PATCH_SIDE * PATCH_SIDE],
-		&eval_patches,
-	)?;
+	// Evaluation shares the training-mode batch-statistics BatchNorm path:
+	// running statistics freeze at program-record time under captured replay,
+	// so the honest eval metric normalizes over the 64-image eval batch.
+	let (eval_images, eval_labels) = next_batch(&mut rng, EVAL_IMAGES);
+	let images = oa::Matrix::new_from_f32([EVAL_IMAGES, 1, IMAGE_SIDE, IMAGE_SIDE], &eval_images)?;
 	let labels = oa::Matrix::new_from_slice([EVAL_IMAGES], &eval_labels)?;
-	let logits = model.forward(&patches, EVAL_IMAGES)?;
+	let logits = model.forward(&images)?;
 	let evaluation_loss = oa::ml::loss::cross_entropy(&logits, &labels)?.read_f32()?[0];
 	let evaluation_accuracy = accuracy(&logits, &eval_labels, EVAL_IMAGES)?;
 
-	println!("\nEvaluation:");
+	println!("\nEvaluation (batch-statistics BatchNorm):");
 	println!(
 		"  random-loss baseline ln({NUM_CLASSES}) = {:.4}",
 		(NUM_CLASSES as f64).ln()
@@ -342,25 +338,6 @@ fn main() -> oa::Result<()> {
 	println!("  loss: evaluation {evaluation_loss:.6} · last training {final_training_loss:.6}");
 	println!("  image accuracy: {:.1}%", evaluation_accuracy * 100.0);
 	println!("  steps: {steps} · batch: {batch} · lr: {lr}");
-
-	// Quantized-inference check: pack the trained patch projection to Q8 and
-	// compare its forward against the dense module on the same eval batch.
-	let quantized_projection = oa::ml::nn::QuantizedLinear::from_linear(
-		&model.patch_projection,
-		oa::ml::matrix::Quantization::Q8,
-	)?;
-	let dense_projection = model.patch_projection.forward(&patches)?.read_f32()?;
-	let packed_projection = quantized_projection.forward(&patches)?.read_f32()?;
-	let max_deviation = dense_projection
-		.iter()
-		.zip(&packed_projection)
-		.map(|(dense, packed)| (dense - packed).abs())
-		.fold(0.0_f32, f32::max);
-	println!("  quantized patch projection (Q8): max |Δ| {max_deviation:.6}");
-	assert!(
-		max_deviation <= 0.02,
-		"quantized projection deviates {max_deviation:.6} from the dense forward",
-	);
 	if let Some(diagnostics) = program_diagnostics {
 		println!(
 			"  program: {} nodes · {} recording · {} cache hits · {} uploads",
@@ -380,7 +357,7 @@ fn main() -> oa::Result<()> {
 	let loss_baseline = (NUM_CLASSES as f32).ln() * 0.3;
 	assert!(
 		evaluation_loss < loss_baseline && evaluation_accuracy >= 0.95,
-		"vit tutorial failed its convergence gate (loss {evaluation_loss:.6}, accuracy {:.3})",
+		"resnet tutorial failed its convergence gate (loss {evaluation_loss:.6}, accuracy {:.3})",
 		evaluation_accuracy,
 	);
 	metrics.flush()?;

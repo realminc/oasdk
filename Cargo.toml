@@ -1,6 +1,6 @@
 [package]
 name = "oasdk"
-version = "0.17.0"
+version = "0.18.0"
 edition = "2024"
 rust-version = "1.98"
 publish = false
@@ -11,12 +11,13 @@ name = "oasdk"
 path = "src/rs/lib/lib.rs"
 
 [dependencies]
-oa = { package = "oarust", version = "0.17.0" }
+oa = { package = "oarust", version = "0.18.0" }
 serde_json = "1"
 unicode-normalization = "0.1"
 unicode-general-category = "1"
 
 [dev-dependencies]
+oads = { package = "oadsrust", version = "0.5.0" }
 libc = "0.2"
 anyhow = "1"
 
@@ -80,12 +81,16 @@ name = "tu_nlp_seq2seq_transformer"
 path = "src/rs/tutorials/ml/nlp/tu_nlp_seq2seq_transformer/tu_nlp_seq2seq_transformer.rs"
 
 [[example]]
-name = "tu_vision_vit"
-path = "src/rs/tutorials/ml/vision/tu_vision_vit/tu_vision_vit.rs"
+name = "tu_ml_vit"
+path = "src/rs/tutorials/ml/tu_ml_vit/tu_ml_vit.rs"
 
 [[example]]
-name = "tu_vision_resnet"
-path = "src/rs/tutorials/ml/vision/tu_vision_resnet/tu_vision_resnet.rs"
+name = "tu_ml_resnet"
+path = "src/rs/tutorials/ml/tu_ml_resnet/tu_ml_resnet.rs"
+
+[[example]]
+name = "tu_ml_fashion_mnist"
+path = "src/rs/tutorials/ml/tu_ml_fashion_mnist/tu_ml_fashion_mnist.rs"
 
 [[example]]
 name = "tu_nlp_char_moe_transformer"

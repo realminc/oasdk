@@ -55,6 +55,10 @@ and profilers `*_profile`. The complete canonical 5x3 NLP comparison matrix
 tokenizers) plus the `tu_nlp_byte_empyrealm` fidelity variant is under
 `rs/tutorials/ml/nlp/`.
 
+The [Fashion-MNIST walkthrough](src/py/tutorials/ml/tu_ml_fashion_mnist/tu_ml_fashion_mnist.md)
+trains and verifies the same clothing classifier in Rust and Python using OADS
+and OA, with headless dataset previews and prediction plots.
+
 ## Python preview
 
 `oapython` is the native Python distribution for the Rust OA runtime. It
