@@ -94,7 +94,7 @@ fn intro_figure() -> oa::plot::Figure {
 		theme: Theme::Dark,
 		..Default::default()
 	});
-	fig.title("One retained figure — Rust and C++ parity");
+	fig.title("One retained figure, Rust and C++ parity");
 
 	let steps = [0.0f32, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0];
 	let train = [1.00f32, 0.78, 0.61, 0.48, 0.37, 0.29, 0.23, 0.19];
@@ -154,7 +154,7 @@ fn roc_plot(ax: &mut Axes) {
 		.iter()
 		.map(|&x| (1.0 - (-6.7 * x).exp()).clamp(0.0, 1.0))
 		.collect();
-	ax.title("ROC — threshold sweep");
+	ax.title("ROC threshold sweep");
 	ax.x_label("false positive rate");
 	ax.y_label("true positive rate");
 	ax.limits(0.0, 1.0, 0.0, 1.0);
@@ -327,7 +327,7 @@ fn gallery(theme: Theme) -> oa::plot::Figure {
 		theme,
 		..Default::default()
 	});
-	fig.title("OA Plot — GPU-composed ML diagnostics");
+	fig.title("OA Plot, GPU-composed ML diagnostics");
 	training_plot(fig.ax(0, 0));
 	roc_plot(fig.ax(0, 1));
 	precision_recall_plot(fig.ax(0, 2));
@@ -351,7 +351,7 @@ fn evaluation_figure() -> oa::plot::Figure {
 		padding: 34,
 		..Default::default()
 	});
-	fig.title("Model evaluation — ROC and precision-recall");
+	fig.title("Model evaluation: ROC and precision-recall");
 	roc_plot(fig.ax(0, 0));
 	precision_recall_plot(fig.ax(0, 1));
 	fig
@@ -388,7 +388,7 @@ fn landscapes_figure() -> oa::plot::Figure {
 		padding: 34,
 		..Default::default()
 	});
-	fig.title("scalar-field projections — explicit-X wireframes");
+	fig.title("scalar-field projections, explicit-X wireframes");
 	loss_landscape(fig.ax(0, 0));
 	gradient_basin(fig.ax(0, 1));
 	fig
@@ -441,7 +441,7 @@ fn main() -> anyhow::Result<()> {
 			.instance_extensions(extensions)
 			.build()?
 	} else {
-		Runtime::new()?
+		Runtime::current()?
 	};
 	Runtime::set_default(runtime.clone());
 

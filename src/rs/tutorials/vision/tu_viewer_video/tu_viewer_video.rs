@@ -1,14 +1,14 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// OA Tutorial: oa::Viewer — Video playback (H.264 / H.265 / VP9 / AV1)
-// Level-0 API — oa::Viewer, ViewerMode::Video
+// OA Tutorial: oa::Viewer · Video playback (H.264 / H.265 / VP9 / AV1)
+// Level-0 API · oa::Viewer, ViewerMode::Video
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // Opens a video file in the Viewer's video mode, which renders frames using
 // the GPU blit path with pan/zoom navigation and a timeline scrub bar.
 //
 // Controls:
-//   Space — play/pause    Left/Right arrow — step frame    Q/Esc — quit
-//   +/-   — zoom          0/F — fit to window
+//   Space · play/pause    Left/Right arrow · step frame    Q/Esc · quit
+//   +/-   · zoom          0/F · fit to window
 //
 // usage:
 //   cargo run --example tu_viewer_video -- [file.mp4]
@@ -38,7 +38,7 @@ fn main() -> Result<()> {
 	};
 
 	// Headless capture mode: decode one frame through the level-1 player and
-	// save it — the same native decode + GPU presentation path the Viewer
+	// save it · the same native decode + GPU presentation path the Viewer
 	// uses, without opening a window. Documentation assets are generated this
 	// way (see asset/poster-frame.png).
 	if let Some(output) = flag_value("--poster") {
@@ -73,8 +73,7 @@ fn main() -> Result<()> {
 /// Decode `frame` of `input` through the native Vulkan Video path, convert
 /// the decoded YUV planes to an RGBA texture on-device, and write a PNG.
 fn write_poster(input: &str, output: &str, frame: u64) -> Result<()> {
-	let runtime = Runtime::new()?;
-	Runtime::set_default(runtime.clone());
+	let runtime = Runtime::current()?;
 	let mut player = VideoPlayer::new_native(
 		&runtime,
 		std::path::Path::new(input),

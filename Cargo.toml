@@ -1,6 +1,6 @@
 [package]
 name = "oasdk"
-version = "0.18.0"
+version = "0.19.0"
 edition = "2024"
 rust-version = "1.98"
 publish = false
@@ -29,16 +29,16 @@ name = "oasdk"
 path = "test/rs/test_sdk.rs"
 
 [[example]]
-name = "tu_core_matmul_intro"
-path = "src/rs/tutorials/core/tu_core_matmul_intro/tu_core_matmul_intro.rs"
+name = "tu_audio_basics"
+path = "src/rs/tutorials/audio/tu_audio_basics/tu_audio_basics.rs"
+
+[[example]]
+name = "tu_core_basics"
+path = "src/rs/tutorials/core/tu_core_basics/tu_core_basics.rs"
 
 [[example]]
 name = "tu_core_device_canary"
 path = "src/rs/tutorials/core/tu_core_device_canary/tu_core_device_canary.rs"
-
-[[example]]
-name = "tu_core_runtime_intro"
-path = "src/rs/tutorials/core/tu_core_runtime_intro/tu_core_runtime_intro.rs"
 
 [[example]]
 name = "bench_core_matmul"
@@ -91,6 +91,10 @@ path = "src/rs/tutorials/ml/tu_ml_resnet/tu_ml_resnet.rs"
 [[example]]
 name = "tu_ml_fashion_mnist"
 path = "src/rs/tutorials/ml/tu_ml_fashion_mnist/tu_ml_fashion_mnist.rs"
+
+[[example]]
+name = "tu_ml_basics"
+path = "src/rs/tutorials/ml/tu_ml_basics/tu_ml_basics.rs"
 
 [[example]]
 name = "tu_nlp_char_moe_transformer"
@@ -173,8 +177,8 @@ name = "bench_ml_rl_ppo"
 path = "src/rs/benchmarks/ml/rl/bench_ppo.rs"
 
 [[example]]
-name = "tu_audio_commands"
-path = "src/rs/tutorials/ml/audio/tu_audio_commands/tu_audio_commands.rs"
+name = "tu_ml_audio_commands"
+path = "src/rs/tutorials/ml/tu_ml_audio_commands/tu_ml_audio_commands.rs"
 
 [[example]]
 name = "tu_rl_cart_pole_ppo"

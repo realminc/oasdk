@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// OA Tutorial: oa::Viewer — Headless image sink
-// Level-0 API — Headless runtime + oa::image save/blit/clear
+// OA Tutorial: oa::Viewer · Headless image sink
+// Level-0 API · Headless runtime + oa::image save/blit/clear
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // The renderer/sink split (architecture/oaArchitecture.md §10).
@@ -14,9 +14,9 @@
 // regardless of whether a display server or surface is reachable.
 //
 // Additionally exercises:
-//   - oa::render::blit      — GPU copy of one texture into another
-//   - oa::render::clear     — solid-color fill (red)
-//   - oa::render::save_texture_file — readback + encode + filesystem write
+//   - oa::render::blit      · GPU copy of one texture into another
+//   - oa::render::clear     · solid-color fill (red)
+//   - oa::render::save_texture_file · readback + encode + filesystem write
 //
 // usage:
 //   cargo run --example tu_viewer_image_headless -- [input.jpg] [output.png]
@@ -44,10 +44,9 @@ fn main() -> Result<()> {
 		.map(PathBuf::from)
 		.unwrap_or_else(|| PathBuf::from("/tmp/oa_viewport_batch.png"));
 
-	// ── Runtime bring-up — headless (pure compute) ─────────────────────────────
+	// ── Runtime bring-up: headless (pure compute) ──────────────────────────────
 	// No surface, no VK_KHR_swapchain.  Any GPU admitted by the driver works.
-	let runtime = Runtime::builder().build()?;
-	Runtime::set_default(runtime.clone());
+	let _runtime = Runtime::current()?;
 
 	eprintln!(
 		"tu_viewer_image_headless: {} → {}",
@@ -68,7 +67,7 @@ fn main() -> Result<()> {
 		out_path.display()
 	);
 
-	// ── Smoke: blit (GPU copy — should round-trip to original) ───────────────
+	// ── Smoke: blit (GPU copy · should round-trip to original) ───────────────
 	let blit_path = PathBuf::from("/tmp/oa_viewport_batch_blit.png");
 	let clone = blit(&tex)?;
 	save_texture_file(&clone, &blit_path, 90)?;

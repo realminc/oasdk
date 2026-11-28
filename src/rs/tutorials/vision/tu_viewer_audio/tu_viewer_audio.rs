@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// OA Tutorial: oa::Viewer — Audio playback and analysis
-// Level-0 API — oa::Viewer, ViewerMode::Audio
+// OA Tutorial: oa::Viewer · Audio playback and analysis
+// Level-0 API · oa::Viewer, ViewerMode::Audio
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // Opens a WAV/FLAC/MP3 audio file in the Viewer's audio mode, which renders
@@ -8,11 +8,11 @@
 // plays the audio through the default CPAL output device.
 //
 // Controls:
-//   Space — play/pause; L — loop
-//   W / S / M — waveform / spectrum / Mel
-//   Left / Right — seek backward / forward by 5 seconds
-//   Up / Down — seek forward / backward by 25 seconds
-//   Q / Esc — quit
+//   Space · play/pause; L · loop
+//   W / S / M · waveform / spectrum / Mel
+//   Left / Right · seek backward / forward by 5 seconds
+//   Up / Down · seek forward / backward by 25 seconds
+//   Q / Esc · quit
 //
 // usage:
 //   cargo run --example tu_viewer_audio -- [file.flac]

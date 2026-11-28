@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """Decode, resize, and adjust one image with the OA Image API.
 
-Mirrors sdk/cpp/tutorials/vision/tuViewerImageHeadless.cpp — basic Vision.
+Mirrors sdk/cpp/tutorials/vision/tuViewerImageHeadless.cpp · basic Vision.
 """
 
 import os
 
 import oa
 asset_root = os.environ.get("OA_ASSET", "asset")
-path = os.path.join(asset_root, "image/visionTestPattern320x180.jpg")
+path = os.path.join(asset_root, "image/coverMl.jpg")
 
-image = oa.image.decode_file(path, "jpeg")
+image = oa.image.decode_file(path, "rgb", None)
 small = oa.image.resize(image, 160, 90)
 adjusted = oa.image.brightness_contrast(small, 0.05, 1.1)
 

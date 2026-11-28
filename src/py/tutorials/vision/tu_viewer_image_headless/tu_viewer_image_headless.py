@@ -10,6 +10,6 @@ import oa
 
 source = sys.argv[1] if len(sys.argv) > 1 else "sdk/asset/image/coverMl.jpg"
 output = sys.argv[2] if len(sys.argv) > 2 else "/tmp/oa_viewer_headless.png"
-image = oa.image.decode_file(source, "rgba")
+image = oa.image.decode_file(source, "rgba", None)
 oa.image.save_file(output, image)
 print(f"wrote {output}")

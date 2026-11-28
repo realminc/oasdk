@@ -1,8 +1,8 @@
-// OA Tutorial — Image-grid Classification (Fashion-MNIST 5×5 grid)
+// OA Tutorial: Image-grid Classification (Fashion-MNIST 5×5 grid)
 //
 // level-1 API: oa::ml::Module + oa::plot::Figure / Axes  (imshow / title / caption)
 //
-// Parallel to the TF Keras classification tutorial — same 5×5 prediction grid,
+// Parallel to the TF Keras classification tutorial, same 5×5 prediction grid,
 // OA Rust syntax, GPU all the way through the compositor.
 //
 //   Same renderer body, two sinks:
@@ -171,7 +171,7 @@ fn train_and_predict_grid(
 	let test_raw = load_mnist_idx(data_dir, "t10k-images-idx3-ubyte", "t10k-labels-idx1-ubyte")
 		.ok_or_else(|| {
 			anyhow::anyhow!(
-				"Fashion-MNIST test set not found at {} — \
+				"Fashion-MNIST test set not found at {}: \
 			 download from https://github.com/zalandoresearch/fashion-mnist",
 				data_dir.display()
 			)
@@ -434,7 +434,7 @@ fn main() -> anyhow::Result<()> {
 
 	println!();
 	println!("╔══════════════════════════════════════════════════════════════════╗");
-	println!("║  OA Tutorial — Fashion-MNIST Prediction grid (oa::plot)          ║");
+	println!("║  OA Tutorial · Fashion-MNIST Prediction grid (oa::plot)          ║");
 	println!("║  Train → Predict → display  (5×5 grid, 25 test images)           ║");
 	println!("║  Green title = correct  ·  Red title = wrong                     ║");
 	println!(
@@ -450,7 +450,7 @@ fn main() -> anyhow::Result<()> {
 
 	// ── save mode: compute-only runtime, no swapchain ─────────────────────────
 	if let Some(ref path) = save_path {
-		let runtime = Runtime::new()?;
+		let runtime = Runtime::current()?;
 		Runtime::set_default(runtime.clone());
 		let cells = train_and_predict_grid(&runtime, &data_dir, train_steps)?;
 		let mut fig = Figure::new(FigureConfig {
@@ -483,7 +483,7 @@ fn main() -> anyhow::Result<()> {
 	let mut viewer = oa::Viewer::new(config);
 	viewer.set_live_source(&mut source);
 
-	let window = oa::SdlWindow::new("OA — Fashion-MNIST grid", 800, 800)
+	let window = oa::SdlWindow::new("OA · Fashion-MNIST grid", 800, 800)
 		.map_err(|e| anyhow::anyhow!("SDL window: {e}"))?;
 	let extensions = window
 		.required_instance_extensions()

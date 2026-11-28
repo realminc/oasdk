@@ -1,12 +1,25 @@
 #!/usr/bin/env python3
-"""Build the same matrix expression with module functions and operators.
+"""Record, combine, and multiply matrices on the default runtime.
 
-Mirrors sdk/rs/tutorials/core/tu_core_matmul_intro/tu_core_matmul_intro.rs — basic Matrix API syntax.
+Mirrors sdk/rs/tutorials/core/tu_core_basics/tu_core_basics.rs.
 """
 
 import oa
-a = oa.Matrix.new_from_f32([2, 3], [-2.0, -1.0, 0.0, 1.0, 2.0, 3.0])
-b = oa.matrix.ones([2, 3])
+
+# Record on the default runtime and checkpoint it: checkpoint submits all
+# pending eager work without blocking the host. read_f32 flushes on its own.
+runtime = oa.Runtime.current()
+ones64 = oa.matrix.ones([64, 128], None)
+twos64 = oa.matrix.full([64, 128], 2.0, None)
+added = oa.matrix.add(ones64, twos64)
+runtime.checkpoint().wait()
+
+added_values = added.read_f32()
+assert added.shape == [64, 128] and added_values[0] == 3.0
+print("add(ones, full(2))[0] =", added_values[0])
+
+a = oa.Matrix.new_from_f32([2, 3], [-2.0, -1.0, 0.0, 1.0, 2.0, 3.0], None)
+b = oa.matrix.ones([2, 3], None)
 
 # Element-wise arithmetic via the stateless module API.
 operator_result = oa.matrix.clamp_min(
@@ -41,8 +54,8 @@ assert values_b == values_a
 print(operator_result.shape, values_a)
 
 # Matmul: C = A @ B^T  (FP32 [M,K] × [N,K] -> [M,N])
-one = oa.matrix.ones([2, 3])
-two = oa.matrix.full([2, 3], 2.0)
+one = oa.matrix.ones([2, 3], None)
+two = oa.matrix.full([2, 3], 2.0, None)
 product = oa.matrix.matmul(one, two)
 prod_vals = product.read_f32()
 

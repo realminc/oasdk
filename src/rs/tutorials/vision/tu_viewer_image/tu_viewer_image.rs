@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// OA Tutorial: oa::Viewer — Universal GPU-Accelerated Image Viewer
-// Level-0 API — oa::Viewer (preconfigured application class)
+// OA Tutorial: oa::Viewer · Universal GPU-Accelerated Image Viewer
+// Level-0 API · oa::Viewer (preconfigured application class)
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // Demonstrates the unified viewer application with interactive image
@@ -15,11 +15,11 @@
 //   cv::waitKey(0)
 //
 // Controls (same as oa::Viewer):
-//   LMB / MMB / wheel — pan and zoom
-//   +/-  — zoom in / out     0 / F — fit to window     9 — 100 %
-//   1–4  — R/G/B/A channel   5 — RGB composite
-//   B — dark/gradient background; G — workspace grid
-//   Q / Esc — quit
+//   LMB / MMB / wheel · pan and zoom
+//   +/-  · zoom in / out     0 / F · fit to window     9 · 100 %
+//   1-4  · R/G/B/A channel   5 · RGB composite
+//   B · dark/gradient background; G · workspace grid
+//   Q / Esc · quit
 //
 // usage:  cargo run --example tu_viewer_image -- [image.jpg]
 //

@@ -1,4 +1,4 @@
-// OA Tutorial — device admission canary.
+// OA Tutorial: device admission canary.
 //
 // Constructs an Runtime, runs a minimal captured matrix operation, and prints
 // a structured summary of the device and execution evidence.  Exit code 0
@@ -50,6 +50,7 @@ fn main() -> anyhow::Result<()> {
 		eprintln!("device canary: Runtime construction failed: {e}");
 		e
 	})?;
+	Runtime::set_default(runtime.clone());
 
 	// Capture a minimal plan: ones + full(2) → add.  The plan diagnostics
 	// and debug report are the device-admission evidence.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Decode, normalize, and save one audio file with the OA audio API.
 
-Mirrors sdk/cpp/tutorials/core/tuCoreEngine.cpp — basic Audio DSP.
+Mirrors sdk/cpp/tutorials/core/tuCoreEngine.cpp, the basic Audio DSP tutorial.
 """
 
 import os
@@ -13,7 +13,7 @@ output_root = os.environ.get("OA_VAR", "var")
 output = os.path.join(output_root, "tutorial/audio/oaNarrationNormalized.wav")
 os.makedirs(os.path.dirname(output), exist_ok=True)
 
-audio = oa.audio.decode_file(asset)
+audio = oa.audio.decode_file(asset, None)
 clean = oa.audio.normalize(audio, -3.0)
 oa.audio.save_wav_f32(output, clean)
 

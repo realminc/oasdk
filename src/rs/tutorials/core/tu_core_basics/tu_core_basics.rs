@@ -54,8 +54,9 @@ struct PerfResult {
 fn main() -> anyhow::Result<()> {
 	let options = parse_options()?;
 
-	println!("OA Rust Core Matmul Intro — C = A @ Bᵀ");
+	println!("OA Rust Core Basics");
 	println!("contract: FP32 [M,K] × [N,K] -> [M,N]");
+	demo_runtime_recording()?;
 	demo_basic_syntax()?;
 
 	if options.correctness {
@@ -91,7 +92,7 @@ fn parse_options() -> anyhow::Result<Options> {
 			}
 			"--help" | "-h" => {
 				println!(
-					"usage: core_matmul_intro [--correctness-only|--benchmark-only] \
+					"usage: tu_core_basics [--correctness-only|--benchmark-only] \
 					 [--case NAME] [--warmup N] [--samples N]"
 				);
 				std::process::exit(0);
@@ -110,8 +111,32 @@ fn parse_count(flag: &str, value: Option<String>) -> anyhow::Result<usize> {
 		.with_context(|| format!("{flag} requires a non-negative integer"))
 }
 
+fn demo_runtime_recording() -> anyhow::Result<()> {
+	println!("\n1. Default runtime and eager recording");
+	let runtime = Runtime::current()?;
+	let a = matrix::ones([64, 128])?;
+	let b = matrix::full([64, 128], 2.0_f32)?;
+	let output = matrix::add(&a, &b)?;
+
+	// `checkpoint` submits all pending eager work without blocking the host.
+	// Optional: `read_f32` below flushes and waits on its own.
+	runtime.checkpoint()?.wait()?;
+
+	let values = output.read_f32()?;
+	let first = values.first().copied().unwrap_or(f32::NAN);
+	ensure!(
+		(first - 3.0_f32).abs() <= 1e-5 && output.shape() == [64, 128] && values.len() == 64 * 128,
+		"unexpected recorded add result"
+	);
+	println!(
+		"   add(ones, full(2))[0] = {first:.1} · checkpoint flushed, {} elements",
+		values.len()
+	);
+	Ok(())
+}
+
 fn demo_basic_syntax() -> anyhow::Result<()> {
-	println!("\n1. Basic syntax");
+	println!("\n2. Basic syntax");
 	let one = matrix::ones([2, 3])?;
 	let two = matrix::full([2, 3], 2.0)?;
 	let product = matrix::matmul(&one, &two)?;
@@ -143,7 +168,7 @@ fn demo_basic_syntax() -> anyhow::Result<()> {
 }
 
 fn run_correctness_suite() -> anyhow::Result<()> {
-	println!("\n2. Correctness vs independent CPU reference");
+	println!("\n3. Correctness vs independent CPU reference");
 	for (index, &case) in CORRECTNESS_CASES.iter().enumerate() {
 		let left_values = values(case.m * case.k, index * 2 + 3);
 		let right_values = values(case.n * case.k, index * 2 + 11);
@@ -164,7 +189,7 @@ fn run_correctness_suite() -> anyhow::Result<()> {
 }
 
 fn run_performance_suite(options: &Options) -> anyhow::Result<()> {
-	println!("\n3. Exploratory eager end-to-end performance");
+	println!("\n4. Exploratory eager end-to-end performance");
 	println!("   boundary: matmul call through synchronized full output readback");
 	println!(
 		"   warmup={} samples={} (one process; not release benchmark evidence)",
@@ -182,7 +207,7 @@ fn run_performance_suite(options: &Options) -> anyhow::Result<()> {
 	}
 	ensure!(matched, "unknown performance case: {:?}", options.case);
 
-	println!("\n4. Compiled replay performance");
+	println!("\n5. Compiled replay performance");
 	println!("   boundary: captured matmul plan, device-timestamped replay (no readback)");
 	println!(
 		"   warmup={} samples={} (one process; same kernel, replay boundary)",

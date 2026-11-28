@@ -77,6 +77,6 @@ runtime = oa.Runtime(presentation=len(sys.argv) == 1)
 
 oa.Runtime.set_default(runtime=runtime)
 if len(sys.argv) > 1:
-	figure.save_to(sys.argv[1])
+	figure.save_to(sys.argv[1], runtime)
 else:
 	figure.show(runtime=runtime)

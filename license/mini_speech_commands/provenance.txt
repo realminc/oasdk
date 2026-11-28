@@ -1,0 +1,11 @@
+Speech Commands Dataset v0.01 mini subset (mini_speech_commands)
+
+Curated and released by Google Inc. as part of the Speech Commands
+dataset (Warden, 2018; arXiv:1804.03209). The mini subset keeps the
+eight command words down, go, left, no, right, stop, up, yes with
+1,000 one-second 16 kHz s16 mono clips each (8,000 clips).
+
+Upstream: http://download.tensorflow.org/data/speech_commands_v0.01.tar.gz
+Pack URL: https://storage.googleapis.com/download.tensorflow.org/data/mini_speech_commands.zip
+License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+License text: CC-BY-4.0.txt
